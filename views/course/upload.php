@@ -230,6 +230,26 @@ if(\Config::get()->OPENCAST_HIDE_EPISODES == false){
                accept=".avi,.mkv,.mp4,.webm,.mov,.ogg,.ogv,video/mp4,video/x-m4v,video/webm,video/ogg,video/mpeg,video/*">
     </div>
 
+    <label for="attachment_upload">
+        <?= $_('Untertitel') ?>
+        <p class="help">
+            <?= $_("Untertitel im .vtt Format.") ?>
+        </p>
+    </label>
+
+    <ul class="oc-attachment-upload-info">
+    </ul>
+
+    <div>
+        <?= LinkButton::createAdd($_('Deutsche Untertitel hinzufügen'), null, ['class' => 'oc-attachment-upload-add', 'data-flavor' => 'captions/vtt+de']) ?>
+        <input type="file" class="attachment_upload" data-flavor="captions/vtt+de"
+               accept=".vtt">
+
+        <?= LinkButton::createAdd($_('Englische Untertitel hinzufügen'), null, ['class' => 'oc-attachment-upload-add', 'data-flavor' => 'captions/vtt+en']) ?>
+        <input type="file" class="attachment_upload" data-flavor="captions/vtt+en"
+               accept=".vtt">
+    </div>
+
     <?= MessageBox::info(
         $_('Laden Sie nur Medien hoch, an denen Sie das Nutzungsrecht besitzen!'),
         [

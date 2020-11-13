@@ -90,6 +90,28 @@ This plugin requires a front end user account to connect to Opencast; create one
 The frontend user needs to following roles:
 `ROLE_ADMIN`, `ROLE_ADMIN_UI`
 
+## Caption configuration in Opencast
+Uploaded caption files need the `engage-download` tag, which needs to be added into the workflow (e.g. `partial-ingest.xml`):
+```xml
+    <operation
+      id="tag"
+      description="Tagging captions for publication">
+      <configurations>
+        <configuration key="source-flavors">captions/*</configuration>
+        <configuration key="target-tags">+engage-download</configuration>
+      </configurations>
+    </operation>
+```
+(By default, `*/captions` is used here as `source-falvor`, which needs to be changed)
+
+
+To add the same upload options (two forms for German and English captions) in Opencast, two new entries need to be added to the `event.upload.asset.options.properties` file:
+
+```java
+EVENTS.EVENTS.NEW.UPLOAD_ASSET.OPTION.CAPTIONS_DE={"id":"attachment_captions_de", "type": "attachment", "flavorType": "captions", "flavorSubType": "vtt+de", "displayOrder":3, "accept": ".vtt"}
+EVENTS.EVENTS.NEW.UPLOAD_ASSET.OPTION.CAPTIONS_EN={"id":"attachment_captions_en", "type": "attachment", "flavorType": "captions", "flavorSubType": "vtt+en", "displayOrder":3, "accept": ".vtt"}
+```
+
 ## Configure Stud.IP
 
 Install the most recent version of this plugin, make sure that all migrations worked properly.

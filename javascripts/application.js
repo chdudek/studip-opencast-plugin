@@ -128,15 +128,16 @@ const OC = {
 
         }
 
-        function uploadTracks(mediaPackage, files, onProgress) {
+        function uploadFiles(mediaPackage, files, onProgress) {
             return files.reduce(function(promise, file) {
                 return promise.then(function (mediaPackage) {
-                    return addTrack(mediaPackage, file, onProgress);
+                    return addFile(mediaPackage, file, onProgress);
                 });
             }, Promise.resolve(mediaPackage))
         }
 
-        function addTrack(mediaPackage, track, onProgress) {
+        function addFile(mediaPackage, track, onProgress) {
+            var attachmentFlavors = ['captions/vtt+de', 'captions/vtt+en']
             var media = track.file;
             var data = new FormData();
             data.append('mediaPackage', mediaPackage);
@@ -148,11 +149,17 @@ const OC = {
                 onProgress(track, event.loaded, event.total);
             };
 
+            var url = serviceUrl + "/ingest/addTrack";
+            if (attachmentFlavors.includes(track.flavor)) {
+                url = serviceUrl + "/ingest/addAttachment";
+            }
+
+
             return new Promise(
                 function (resolve, reject) {
                     var xhr = $.ajax({
                         xhr: createProgressAwareXhr(fnOnProgress),
-                        url: serviceUrl + "/ingest/addTrack",
+                        url: url,
                         method: "POST",
                         data: data,
                         processData: false,
@@ -196,19 +203,26 @@ const OC = {
                 .then(function (_mediaPackage, _status, resp) {
                     return addDCCCatalog(resp.responseText, terms)
                 })
-		.then(function (_mediaPackage, _status, resp) {
-		    var acl = terms.oc_acl;
-		    return addACL(resp.responseText, acl)
+        		.then(function (_mediaPackage, _status, resp) {
+        		    var acl = terms.oc_acl;
+        		    return addACL(resp.responseText, acl)
                 })
                 .then(function (_mediaPackage, _status, resp) {
-                    return uploadTracks(resp.responseText, files, onProgress)
+                    return uploadFiles(resp.responseText, files, onProgress)
                 })
                 .then(function (mediaPackage) {
                     return finishIngest(mediaPackage, workflowId)
                 })
         }
 
+        function test() {
+            return function() {
+
+            }
+        }
+
         var uploadMedia = []
+        var uploadAttachments = []
 
         var fileTemplate = _.template(
             "<span><b>Name:</b> <%- name %></span>"+
@@ -216,6 +230,16 @@ const OC = {
             "<span><select disabled>"+
               "<option value='presenter/source'>Vortragende*r</option>"+
               "<option value='presentation/source'>Folien</option>"+
+            "</select></span>"+
+            "<span><button class='button cancel' type=button>Entfernen</button></span>"
+        );
+
+        var attachmentTemplate = _.template(
+            "<span><b>Name:</b> <%- name %></span>"+
+            "<span><b>Gr&ouml;&szlig;e:</b> <%- size %></span>"+
+            "<span><select disabled>"+
+              "<option value='captions/vtt+de'>Untertitel Deutsch</option>"+
+              "<option value='captions/vtt+en'>Untertitel Englisch</option>"+
             "</select></span>"+
             "<span><button class='button cancel' type=button>Entfernen</button></span>"
         );
@@ -241,6 +265,28 @@ const OC = {
                 })
             })
         }
+        function renderAttachments() {
+            $(".oc-attachment-upload-info").empty()
+
+            uploadAttachments.forEach(function (item, index) {
+                var li = $("<li></li>").html(
+                    attachmentTemplate({ name: item.file.name, size: OC.getFileSize(item.file.size) })
+                );
+                li.appendTo(".oc-attachment-upload-info").find("select").val(item.flavor);
+
+                $(".oc-attachment-upload-add[data-flavor='"+item.flavor+"']").hide();
+
+                li.on("change", "select", function () {
+                    item.flavor = $(this).val()
+                })
+                li.on("click", "button", function () {
+                    uploadAttachments = [...uploadAttachments.slice(0, index), ...uploadAttachments.slice(index + 1)];
+                    renderAttachments();
+                    $(".attachment_upload[data-flavor='"+item.flavor+"']").trigger("reset-button");
+                })
+            })
+        }
+
 
         function onFileChange(event) {
             var target = event.target
@@ -252,6 +298,18 @@ const OC = {
 
             uploadMedia.push({ file: file, flavor: flavor, progress: { loaded: 0, total: file.size }});
             renderFiles();
+        }
+        function onAttachmentChange(event) {
+            var target = event.target
+            if (!target.files || target.files.length !== 1) {
+                return;
+            }
+            var file = target.files[0];
+            var flavor  = $(target).data("flavor");
+
+            uploadAttachments.push({ file: file, flavor: flavor, progress: { loaded: 0, total: file.size }});
+            console.log(uploadAttachments)
+            renderAttachments();
         }
 
         function redirectAfterUpload(status) {
@@ -310,8 +368,19 @@ const OC = {
             var workflowId = window.OC.parameters.uploadWorkflowId;
 
             $(document).on('change', '.video_upload', onFileChange)
+            $(document).on('change', '.attachment_upload', onAttachmentChange)
 
             $(document).on('click', '.oc-media-upload-add', function (event) {
+                event.preventDefault();
+                var $button = $(this);
+                var $input = $(this).next('input');
+                $input.trigger('click');
+                $input.one("reset-button", function () {
+                    $input.val('');
+                    $button.show();
+                });
+            });
+            $(document).on('click', '.oc-attachment-upload-add', function (event) {
                 event.preventDefault();
                 var $button = $(this);
                 var $input = $(this).next('input');
@@ -330,6 +399,9 @@ const OC = {
                     });
                     return false;
                 }
+
+                // Add attachment files (if any)
+                var uploadFiles = uploadMedia.concat(uploadAttachments);
 
                 if (this.dataset.isUploading && this.dataset.isUploading) {
                     return false;
@@ -361,7 +433,7 @@ const OC = {
                     oc_acl: decodeURIComponent(formFields.oc_acl).replace(/\+/g," ")
                 }
 
-                const dialog = showUploadProgress(uploadMedia);
+                const dialog = showUploadProgress(uploadFiles);
 
                 var onProgress = function (file, loaded, total) {
                     file.progress = { loaded, total };
@@ -376,7 +448,7 @@ const OC = {
                     redirectAfterUpload(false);
                 };
 
-                upload(uploadMedia, terms, workflowId, onProgress)
+                upload(uploadFiles, terms, workflowId, onProgress)
                     .then(onSuccess)
                     .catch(onError)
 
